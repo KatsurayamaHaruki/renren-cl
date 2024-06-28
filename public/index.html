@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>レンレン連想ゲーム</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="screen-A" class="screen">
+            <h1>レンレン連想ゲーム</h1>
+            <input type="text" id="nickname" placeholder="ニックネーム">
+            <button id="create-room">ルーム作成</button>
+            <input type="text" id="room-id" placeholder="ルームID">
+            <button id="join-room">ルーム参加</button>
+        </div>
+
+        <div id="screen-F" class="screen">
+            <h2>ルーム: <span id="room-id-display"></span></h2>
+            <h3>参加者一覧</h3>
+            <ul id="participant-list"></ul>
+            <button id="start-game">ゲームをスタート</button>
+        </div>
+
+        <div id="screen-B" class="screen">
+            <h2>親のターン</h2>
+            <p>お題: <span id="word-a"></span></p>
+            <input type="text" id="word-b" placeholder="ワードB">
+            <input type="text" id="word-c" placeholder="ワードC">
+            <button id="submit-parent-words">送信</button>
+        </div>
+
+        <div id="screen-C" class="screen">
+            <h2>子のターン</h2>
+            <p>お題: <span id="word-a-child"></span></p>
+            <p>ワードBの頭文字: <span id="word-b-initial"></span></p>
+            <p>ワードCの頭文字: <span id="word-c-initial"></span></p>
+            <input type="text" id="child-guess" placeholder="ワードCの予想">
+            <button id="submit-child-guess">送信</button>
+        </div>
+
+        <div id="screen-waiting" class="screen">
+            <h2>お待ちください</h2>
+            <p>親が連想ワードを考えています...</p>
+        </div>
+
+        <div id="screen-E" class="screen">
+            <h2>結果発表</h2>
+            <p>お題: <span id="result-word-a"></span></p>
+            <p>ワードB: <span id="result-word-b"></span></p>
+            <p>ワードC: <span id="result-word-c"></span></p>
+            <p>予想: <span id="result-guess"></span></p>
+            <p id="result-message"></p>
+            <button id="next-turn">次のターンへ</button>
+        </div>
+
+        <div id="screen-G" class="screen">
+            <h2>最終結果</h2>
+            <ul id="final-scores"></ul>
+            <button id="return-to-start">最初の画面に戻る</button>
+        </div>
+
+        <div id="role-display"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentRoom = '';
+        let nickname = '';
+        let participants = [];
+        let currentParentIndex = 0;
+
+        // DOM要素の取得
+        const screenA = document.getElementById('screen-A');
+        const screenF = document.getElementById('screen-F');
+        const screenB = document.getElementById('screen-B');
+        const screenC = document.getElementById('screen-C');
+        const screenE = document.getElementById('screen-E');
+        const screenG = document.getElementById('screen-G');
+        const screenWaiting = document.getElementById('screen-waiting');
+        const roleDisplay = document.getElementById('role-display');
+
+        // イベントリスナーの設定
+        document.getElementById('create-room').addEventListener('click', createRoom);
+        document.getElementById('join-room').addEventListener('click', joinRoom);
+        document.getElementById('start-game').addEventListener('click', startGame);
+        document.getElementById('submit-parent-words').addEventListener('click', submitParentWords);
+        document.getElementById('submit-child-guess').addEventListener('click', submitChildGuess);
+        document.getElementById('next-turn').addEventListener('click', nextTurn);
+        document.getElementById('return-to-start').addEventListener('click', returnToStart);
+
+        // ルーム作成
+        function createRoom() {
+            nickname = document.getElementById('nickname').value;
+            if (!nickname) {
+                alert('ニックネームを入力してください');
+                return;
+            }
+            currentRoom = Math.random().toString(36).substring(7);
+            socket.emit('createRoom', { roomId: currentRoom, nickname: nickname });
+        }
+
+        // ルーム参加
+        function joinRoom() {
+            nickname = document.getElementById('nickname').value;
+            currentRoom = document.getElementById('room-id').value;
+            if (!nickname || !currentRoom) {
+                alert('ニックネームとルームIDを入力してください');
+                return;
+            }
+            socket.emit('joinRoom', { roomId: currentRoom, nickname: nickname });
+        }
+
+        // ゲーム開始
+        function startGame() {
+            socket.emit('startGame', currentRoom);
+        }
+
+        // 親の単語送信
+        function submitParentWords() {
+            const wordB = document.getElementById('word-b').value;
+            const wordC = document.getElementById('word-c').value;
+            socket.emit('submitParentWords', { roomId: currentRoom, wordB, wordC });
+        }
+
+        // 子の予想送信
+        function submitChildGuess() {
+            const guess = document.getElementById('child-guess').value;
+            socket.emit('submitChildGuess', { roomId: currentRoom, guess });
+        }
+
+        // 次のターンへ
+        function nextTurn() {
+            socket.emit('nextTurn', currentRoom);
+        }
+
+        // 最初の画面に戻る
+        function returnToStart() {
+            showScreen('A');
+        }
+
+        // 画面の切り替え
+        function showScreen(screenId) {
+            [screenA, screenF, screenB, screenC, screenE, screenG, screenWaiting].forEach(screen => {
+                screen.style.display = 'none';
+            });
+            document.getElementById(`screen-${screenId}`).style.display = 'block';
+        }
+
+        // 役割の表示更新
+        function updateRoleDisplay() {
+            const isParent = participants[currentParentIndex].name === nickname;
+            roleDisplay.textContent = isParent ? '現在の役割: 親' : '現在の役割: 子';
+        }
+
+        // サーバーからのイベントハンドラ
+        socket.on('roomCreated', (data) => {
+            document.getElementById('room-id-display').textContent = data.roomId;
+            participants = data.participants;
+            showScreen('F');
+            updateParticipantList();
+        });
+
+        socket.on('updateParticipants', (updatedParticipants) => {
+            participants = updatedParticipants;
+            updateParticipantList();
+        });
+
+        socket.on('gameStarted', (data) => {
+            currentParentIndex = data.parentIndex;
+            updateRoleDisplay();
+            if (participants[currentParentIndex].name === nickname) {
+                document.getElementById('word-a').textContent = data.gameState.wordA;
+                showScreen('B');
+            } else {
+                showScreen('waiting');
+            }
+        });
+
+        socket.on('parentWordsSubmitted', (data) => {
+            if (participants[currentParentIndex].name !== nickname) {
+                document.getElementById('word-a-child').textContent = document.getElementById('word-a').textContent;
+                document.getElementById('word-b-initial').textContent = data.wordB;
+                document.getElementById('word-c-initial').textContent = data.wordC;
+                showScreen('C');
+            }
+        });
+
+        socket.on('guessResult', (result) => {
+            document.getElementById('result-word-a').textContent = document.getElementById('word-a').textContent;
+            document.getElementById('result-word-b').textContent = document.getElementById('word-b').value;
+            document.getElementById('result-word-c').textContent = document.getElementById('word-c').value;
+            document.getElementById('result-guess').textContent = document.getElementById('child-guess').value;
+            document.getElementById('result-message').textContent = result.correct ? '正解！' : '不正解...';
+            showScreen('E');
+        });
+
+        socket.on('newTurnStarted', (data) => {
+            currentParentIndex = data.parentIndex;
+            updateRoleDisplay();
+            if (participants[currentParentIndex].name === nickname) {
+                document.getElementById('word-a').textContent = data.gameState.wordA;
+                showScreen('B');
+            } else {
+                showScreen('waiting');
+            }
+        });
+
+        socket.on('gameEnded', (finalScores) => {
+            const list = document.getElementById('final-scores');
+            list.innerHTML = finalScores.map(score => {
+                const participant = participants.find(p => p.id === score.id);
+                return `<li>${participant.name}: ${score.score}点 (${score.rank}位)</li>`;
+            }).join('');
+            showScreen('G');
+        });
+
+        socket.on('roomNotFound', () => {
+            alert('ルームが見つかりません');
+        });
+
+        function updateParticipantList() {
+            const list = document.getElementById('participant-list');
+            list.innerHTML = participants.map(p => `<li>${p.name}</li>`).join('');
+        }
+
+        // 初期画面の表示
+        showScreen('A');
+    </script>
+</body>
+</html>
