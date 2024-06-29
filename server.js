@@ -49,7 +49,11 @@ io.on('connection', (socket) => {
     if (rooms[roomId]) {
       rooms[roomId].gameState.wordB = wordB;
       rooms[roomId].gameState.wordC = wordC;
-      io.to(roomId).emit('parentWordsSubmitted', { wordB: wordB[0], wordC: wordC[0] });
+      io.to(roomId).emit('parentWordsSubmitted', { 
+        wordA: rooms[roomId].gameState.wordA,
+        wordB: wordB[0], 
+        wordC: wordC[0] 
+      });
     }
   });
 
@@ -57,7 +61,13 @@ io.on('connection', (socket) => {
     const { roomId, guess } = data;
     if (rooms[roomId]) {
       const result = processGuess(rooms[roomId].gameState, guess);
-      io.to(roomId).emit('guessResult', result);
+      io.to(roomId).emit('guessResult', {
+        ...result,
+        wordA: rooms[roomId].gameState.wordA,
+        wordB: rooms[roomId].gameState.wordB,
+        wordC: rooms[roomId].gameState.wordC,
+        guess: guess
+      });
     }
   });
 

@@ -180,19 +180,19 @@
         });
 
         socket.on('parentWordsSubmitted', (data) => {
+            document.getElementById('word-a-child').textContent = data.wordA;
+            document.getElementById('word-b-initial').textContent = data.wordB;
+            document.getElementById('word-c-initial').textContent = data.wordC;
             if (participants[currentParentIndex].name !== nickname) {
-                document.getElementById('word-a-child').textContent = document.getElementById('word-a').textContent;
-                document.getElementById('word-b-initial').textContent = data.wordB;
-                document.getElementById('word-c-initial').textContent = data.wordC;
                 showScreen('C');
             }
         });
 
         socket.on('guessResult', (result) => {
-            document.getElementById('result-word-a').textContent = document.getElementById('word-a').textContent;
-            document.getElementById('result-word-b').textContent = document.getElementById('word-b').value;
-            document.getElementById('result-word-c').textContent = document.getElementById('word-c').value;
-            document.getElementById('result-guess').textContent = document.getElementById('child-guess').value;
+            document.getElementById('result-word-a').textContent = result.wordA;
+            document.getElementById('result-word-b').textContent = result.wordB;
+            document.getElementById('result-word-c').textContent = result.wordC;
+            document.getElementById('result-guess').textContent = result.guess;
             document.getElementById('result-message').textContent = result.correct ? '正解！' : '不正解...';
             showScreen('E');
         });
