@@ -26,11 +26,14 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', (data) => {
     const { roomId, nickname } = data;
     if (rooms[roomId]) {
-      rooms[roomId].participants.push({ id: socket.id, name: nickname });
-      socket.join(roomId);
-      io.to(roomId).emit('updateParticipants', rooms[roomId].participants);
+        rooms[roomId].participants.push({ id: socket.id, name: nickname });
+        socket.join(roomId);
+        // 参加したユーザーに個別に成功メッセージを送信
+        socket.emit('joinedRoom', { roomId, participants: rooms[roomId].participants });
+        // ルーム内の全員に更新された参加者リストを送信
+        io.to(roomId).emit('updateParticipants', rooms[roomId].participants);
     } else {
-      socket.emit('roomNotFound');
+        socket.emit('roomNotFound');
     }
   });
 

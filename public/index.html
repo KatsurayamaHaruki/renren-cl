@@ -163,9 +163,20 @@
             updateParticipantList();
         });
 
+        socket.on('joinedRoom', (data) => {
+            document.getElementById('room-id-display').textContent = data.roomId;
+            participants = data.participants;
+            showScreen('F');
+            updateParticipantList();
+        });
+
         socket.on('updateParticipants', (updatedParticipants) => {
             participants = updatedParticipants;
             updateParticipantList();
+            // 既にルームに参加している場合のみ画面Fを表示
+            if (currentRoom) {
+                showScreen('F');
+            }
         });
 
         socket.on('gameStarted', (data) => {
