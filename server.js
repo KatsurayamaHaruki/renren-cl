@@ -2,6 +2,9 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
+const fs = require('fs');
+const csv = require('csv-parser');
+const path = require('path');
 
 app.use(express.static('public'));
 
@@ -103,15 +106,35 @@ io.on('connection', (socket) => {
   });
 });
 
-function initializeGameState(participants) {
-  return {
-    wordA: initialWords[Math.floor(Math.random() * initialWords.length)],
-    wordB: '',
-    wordC: '',
-    scores: participants.reduce((acc, p) => ({ ...acc, [p.id]: 0 }), {}),
-    attempts: 0
-  };
+let words = [];
+
+function loadWords() {
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(path.join(__dirname, 'words.csv'))
+      .pipe(csv(['word']))
+      .on('data', (row) => {
+        words.push(row.word);
+      })
+      .on('end', () => {
+        console.log('Words loaded successfully');
+        resolve();
+      })
+      .on('error', (error) => {
+        console.error('Error loading words:', error);
+        reject(error);
+      });
+  });
 }
+
+function initializeGameState(participants) {
+    return {
+      wordA: words[Math.floor(Math.random() * words.length)],
+      wordB: '',
+      wordC: '',
+      scores: participants.reduce((acc, p) => ({ ...acc, [p.id]: 0 }), {}),
+      attempts: 0
+    };
+  }
 
 function processGuess(gameState, guess) {
   gameState.attempts++;
@@ -135,6 +158,21 @@ function calculateFinalScores(gameState) {
     .sort((a, b) => b[1] - a[1])
     .map(([id, score], index) => ({ id, score, rank: index + 1 }));
 }
+
+
+async function startServer() {
+    try {
+      await loadWords();
+      http.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+      });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+    }
+  }
+  
+startServer();
+
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
